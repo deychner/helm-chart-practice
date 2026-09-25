@@ -1,0 +1,21 @@
+{{/*
+A Role is namespace-scoped: it can only ever grant access to objects inside
+this one namespace. (A ClusterRole is the cluster-wide equivalent -- we
+deliberately do not use one.)
+
+Honest caveat: this app does not talk to the Kubernetes API at all, so the
+genuinely least-privilege answer would be no Role whatsoever. The rule below
+exists so there is something real to inspect with `kubectl auth can-i`. Note
+what it does NOT include: no secrets, no wildcards, no write verbs.
+*/}}
+{{- if .Values.rbac.create }}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "health-api.fullname" . }}
+  namespace: {{ include "health-api.namespace" . }}
+  labels:
+    {{- include "health-api.labels" . | nindent 4 }}
+rules:
+  {{- toYaml .Values.rbac.rules | nindent 2 }}
+{{- end }}

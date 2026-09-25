@@ -1,0 +1,22 @@
+{{/*
+Putting the Namespace inside the chart is a deliberate teaching choice, not the
+usual convention. The common alternative is:
+
+    helm install ... --namespace health-api-dev --create-namespace
+
+...which leaves the namespace outside Helm's ownership. Doing it here means
+`helm uninstall` deletes the namespace and EVERYTHING in it -- fine for a
+throwaway practice namespace, dangerous in a shared cluster.
+
+Guarded on `name` as well as `create` so we can never accidentally try to
+create a Namespace object called "default", which already exists and is not
+owned by Helm.
+*/}}
+{{- if and .Values.namespace.create .Values.namespace.name }}
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ .Values.namespace.name }}
+  labels:
+    {{- include "health-api.labels" . | nindent 4 }}
+{{- end }}

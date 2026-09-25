@@ -1,0 +1,23 @@
+{{/*
+A ClusterIP Service gives the pods one stable in-cluster DNS name and IP,
+load-balancing across whichever pods are currently READY. No ingress here, so
+reaching it from your laptop means `kubectl port-forward`.
+*/}}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "health-api.fullname" . }}
+  namespace: {{ include "health-api.namespace" . }}
+  labels:
+    {{- include "health-api.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.service.type }}
+  ports:
+    - name: http
+      port: {{ .Values.service.port }}
+      # Refers to the port NAMED "http" on the container, not a number. Change
+      # the container port later and this keeps working.
+      targetPort: http
+      protocol: TCP
+  selector:
+    {{- include "health-api.selectorLabels" . | nindent 4 }}

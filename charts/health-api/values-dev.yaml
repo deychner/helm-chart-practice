@@ -1,0 +1,22 @@
+# Development overlay: one replica, chatty logs, loose resources.
+#   helm install health-api-dev ./charts/health-api -f ./charts/health-api/values-dev.yaml
+
+replicaCount: 1
+
+namespace:
+  create: true
+  name: health-api-dev
+
+image:
+  tag: dev
+  pullPolicy: IfNotPresent
+
+aspnetcoreEnvironment: Development
+logLevel: Debug
+
+# Requests only, no limits: in dev we care that the pod schedules, not that it
+# is capped.
+resources:
+  requests:
+    cpu: 25m
+    memory: 96Mi

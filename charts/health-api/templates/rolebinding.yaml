@@ -1,0 +1,21 @@
+{{/*
+A Role grants nothing by itself. The RoleBinding is what attaches it to an
+identity -- here, our ServiceAccount. Role + RoleBinding is always a pair.
+*/}}
+{{- if .Values.rbac.create }}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ include "health-api.fullname" . }}
+  namespace: {{ include "health-api.namespace" . }}
+  labels:
+    {{- include "health-api.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ include "health-api.fullname" . }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "health-api.serviceAccountName" . }}
+    namespace: {{ include "health-api.namespace" . }}
+{{- end }}

@@ -1,0 +1,10 @@
+apiVersion: v2
+name: health-api
+description: A minimal .NET 10 health API, used as a hands-on Helm and Kubernetes exercise
+type: application
+
+# version     = the version of THIS CHART. Bump when the templates change.
+# appVersion  = the version of the APPLICATION the chart deploys. Bump when the
+#               app changes. The two move independently, which is the point.
+version: 0.1.0
+appVersion: "1.0.0"

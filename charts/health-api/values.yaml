@@ -1,0 +1,100 @@
+# Default values for the health-api chart.
+# Every value here can be overridden with -f <file> or --set key=value.
+# values-dev.yaml and values-prod.yaml override a handful of these.
+
+replicaCount: 1
+
+image:
+  repository: health-api
+  # Tag is pinned rather than using "latest" on purpose: Kubernetes defaults
+  # imagePullPolicy to Always for the "latest" tag, which would send it looking
+  # for a registry copy of an image that only exists on your machine.
+  tag: dev
+  pullPolicy: IfNotPresent
+
+# Optional chart-managed namespace. A Namespace object is rendered only when
+# BOTH create is true and name is non-empty. Left off here so a plain
+# `helm install --namespace X` behaves normally; dev and prod both turn it on.
+namespace:
+  create: false
+  name: ""
+
+serviceAccount:
+  create: true
+  # Empty means "derive it from the release name".
+  name: ""
+  # This app never calls the Kubernetes API, so it has no use for a token.
+  automountServiceAccountToken: false
+
+rbac:
+  create: true
+  # Namespace-scoped, read-only, and limited to one resource type.
+  # No secrets, no wildcards, no write verbs.
+  rules:
+    - apiGroups: [""]
+      resources: ["configmaps"]
+      verbs: ["get", "list", "watch"]
+
+service:
+  type: ClusterIP
+  # Port on the Service. The container listens on containerPort below; the
+  # Service maps 80 -> the container's named "http" port.
+  port: 80
+
+containerPort: 8080
+
+# ---- application configuration ----
+aspnetcoreEnvironment: Production
+logLevel: Information
+# Extra environment variables, appended as-is. Example:
+#   extraEnv:
+#     - name: FEATURE_X
+#       value: "true"
+extraEnv: []
+
+# ---- health probes ----
+probes:
+  startup:
+    periodSeconds: 3
+    failureThreshold: 20   # allows up to ~60s to start before giving up
+  liveness:
+    periodSeconds: 10
+    failureThreshold: 3
+  readiness:
+    periodSeconds: 5
+    failureThreshold: 2
+
+# ---- lifecycle ----
+terminationGracePeriodSeconds: 30
+# Seconds to pause in preStop so endpoint removal can propagate before the app
+# shuts down. Set to 0 to disable the preStop hook entirely.
+preStopDrainSeconds: 5
+revisionHistoryLimit: 3
+
+# ---- security ----
+# Applies to the whole pod. 1654 is the "app" user baked into the Microsoft
+# .NET base image; it must be the numeric id, not the name, or runAsNonRoot
+# cannot be enforced.
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1654
+  runAsGroup: 1654
+  fsGroup: 1654
+  seccompProfile:
+    type: RuntimeDefault
+
+# Applies to the container.
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL
+
+resources:
+  requests:
+    cpu: 25m
+    memory: 96Mi
+
+nameOverride: ""
+fullnameOverride: ""

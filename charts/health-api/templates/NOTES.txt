@@ -1,0 +1,27 @@
+{{ .Chart.Name }} release "{{ .Release.Name }}" installed into namespace {{ include "health-api.namespace" . }}.
+
+Replicas: {{ .Values.replicaCount }}
+Image:    {{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}
+
+1. Wait for the pods to become ready:
+
+   kubectl get pods -n {{ include "health-api.namespace" . }} -l app.kubernetes.io/instance={{ .Release.Name }} -w
+
+2. Forward a local port to the Service (leave this running):
+
+   kubectl port-forward -n {{ include "health-api.namespace" . }} svc/{{ include "health-api.fullname" . }} 8080:{{ .Values.service.port }}
+
+3. From another terminal:
+
+   curl http://localhost:8080/
+   curl http://localhost:8080/healthz/live
+   curl http://localhost:8080/healthz/ready
+
+4. Prove the RBAC Role is least-privilege -- the first says yes, the second no:
+
+   kubectl auth can-i get configmaps -n {{ include "health-api.namespace" . }} --as=system:serviceaccount:{{ include "health-api.namespace" . }}:{{ include "health-api.serviceAccountName" . }}
+   kubectl auth can-i get secrets    -n {{ include "health-api.namespace" . }} --as=system:serviceaccount:{{ include "health-api.namespace" . }}:{{ include "health-api.serviceAccountName" . }}
+
+5. Remove everything:
+
+   helm uninstall {{ .Release.Name }} -n {{ .Release.Namespace }}

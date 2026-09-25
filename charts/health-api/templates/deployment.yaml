@@ -1,0 +1,120 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "health-api.fullname" . }}
+  namespace: {{ include "health-api.namespace" . }}
+  labels:
+    {{- include "health-api.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  revisionHistoryLimit: {{ .Values.revisionHistoryLimit }}
+  selector:
+    matchLabels:
+      {{- include "health-api.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "health-api.labels" . | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "health-api.serviceAccountName" . }}
+      # Repeated here as well as on the ServiceAccount: the pod-level setting
+      # wins, and setting it in both places means the token stays out even if
+      # the pod is later pointed at a different ServiceAccount.
+      automountServiceAccountToken: {{ .Values.serviceAccount.automountServiceAccountToken }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      # Grace period for a terminating pod: how long the kubelet waits after
+      # SIGTERM before SIGKILL. Must comfortably exceed the preStop sleep below.
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      containers:
+        - name: {{ .Chart.Name }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.containerPort }}
+              protocol: TCP
+          env:
+            # The downward API: Kubernetes injects facts about the pod as env
+            # vars. This is what makes GET / report which replica answered.
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            - name: ASPNETCORE_ENVIRONMENT
+              value: {{ .Values.aspnetcoreEnvironment | quote }}
+            # Double underscore is how .NET maps a flat env var onto nested
+            # config: this overrides Logging:LogLevel:Default from appsettings.
+            - name: Logging__LogLevel__Default
+              value: {{ .Values.logLevel | quote }}
+            {{- with .Values.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+
+          # Startup probe: gives a slow-booting app room to come up without the
+          # liveness probe killing it. Liveness and readiness are both held off
+          # until this passes once.
+          startupProbe:
+            httpGet:
+              path: /healthz/live
+              port: http
+            periodSeconds: {{ .Values.probes.startup.periodSeconds }}
+            failureThreshold: {{ .Values.probes.startup.failureThreshold }}
+
+          # Liveness: failure RESTARTS the container. Deliberately shallow --
+          # it checks no dependencies, only that the process still serves HTTP.
+          livenessProbe:
+            httpGet:
+              path: /healthz/live
+              port: http
+            periodSeconds: {{ .Values.probes.liveness.periodSeconds }}
+            failureThreshold: {{ .Values.probes.liveness.failureThreshold }}
+
+          # Readiness: failure REMOVES the pod from the Service endpoints. No
+          # restart. This is the one you can flip by hand via /admin/ready.
+          readinessProbe:
+            httpGet:
+              path: /healthz/ready
+              port: http
+            periodSeconds: {{ .Values.probes.readiness.periodSeconds }}
+            failureThreshold: {{ .Values.probes.readiness.failureThreshold }}
+
+          {{- if gt (int .Values.preStopDrainSeconds) 0 }}
+          lifecycle:
+            preStop:
+              # Pod deletion removes the pod from Service endpoints and sends
+              # SIGTERM at the same moment -- so without this pause, requests
+              # already in flight toward this pod get dropped. Sleeping first
+              # lets endpoint removal propagate before the app shuts down.
+              # (Uses `sleep` from the base image; the chiseled image has no
+              # shell, so this would need a different approach there.)
+              exec:
+                command: ["sleep", "{{ .Values.preStopDrainSeconds }}"]
+          {{- end }}
+
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+
+          {{- if .Values.securityContext.readOnlyRootFilesystem }}
+          # readOnlyRootFilesystem blocks all writes, but .NET still wants a
+          # writable /tmp. An emptyDir gives it one that lives and dies with
+          # the pod.
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+          {{- end }}
+      {{- if .Values.securityContext.readOnlyRootFilesystem }}
+      volumes:
+        - name: tmp
+          emptyDir: {}
+      {{- end }}

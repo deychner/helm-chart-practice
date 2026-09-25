@@ -1,0 +1,33 @@
+# Production-shaped overlay: three replicas, pinned tag, real limits.
+#   helm install health-api-prod ./charts/health-api -f ./charts/health-api/values-prod.yaml
+#
+# Install this alongside the dev release to see two isolated copies of the same
+# chart running in one cluster.
+
+replicaCount: 3
+
+namespace:
+  create: true
+  name: health-api-prod
+
+image:
+  # An immutable version tag, never "latest" or a moving tag like "dev".
+  # Build it locally with:  docker build -t health-api:1.0.0 src/HealthApi
+  tag: "1.0.0"
+  # A real production cluster would use Always (or pin by @sha256 digest) and
+  # pull from a registry. Kept as IfNotPresent so this works in kind, where the
+  # image is side-loaded rather than pulled.
+  pullPolicy: IfNotPresent
+
+aspnetcoreEnvironment: Production
+logLevel: Information
+
+# Requests reserve capacity for scheduling; limits cap what the container can
+# consume. Exceeding the memory limit gets the container OOM-killed.
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 256Mi
