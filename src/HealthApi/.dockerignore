@@ -1,0 +1,14 @@
+# Build output -- must never enter the image; stale local binaries would be
+# copied over the ones produced inside the build stage.
+bin/
+obj/
+
+# Local-only tooling files
+Properties/launchSettings.json
+*.user
+.vs/
+.idea/
+
+# Not needed inside the build context
+Dockerfile
+.dockerignore
